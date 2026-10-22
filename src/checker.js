@@ -4,10 +4,46 @@ import { readRepository, repositoryPath, cloneProblem } from './git.js';
 
 const excluded = new Set(['.git', 'node_modules', '.cache']);
 
+function blankCodeSpans(text) {
+  const output = text.split('');
+  let cursor = 0;
+  while (cursor < text.length) {
+    const opening = text.indexOf('`', cursor);
+    if (opening < 0) break;
+
+    let openingEnd = opening + 1;
+    while (text[openingEnd] === '`') openingEnd++;
+    const delimiterLength = openingEnd - opening;
+    let search = openingEnd;
+    let closingEnd;
+    while (search < text.length) {
+      const candidate = text.indexOf('`', search);
+      if (candidate < 0) break;
+      let candidateEnd = candidate + 1;
+      while (text[candidateEnd] === '`') candidateEnd++;
+      if (candidateEnd - candidate === delimiterLength) {
+        closingEnd = candidateEnd;
+        break;
+      }
+      search = candidateEnd;
+    }
+
+    if (closingEnd === undefined) {
+      cursor = openingEnd;
+      continue;
+    }
+    for (let index = opening; index < closingEnd; index++) {
+      if (text[index] !== '\n') output[index] = ' ';
+    }
+    cursor = closingEnd;
+  }
+  return output.join('');
+}
+
 // Blank code while preserving offsets and newlines for accurate diagnostics.
 function withoutCode(text) {
   let fence;
-  return text.split('\n').map(line => {
+  const withoutFences = text.split('\n').map(line => {
     const match = line.match(/^ {0,3}(`{3,}|~{3,})/);
     if (fence) {
       if (match && match[1][0] === fence[0] && match[1].length >= fence.length &&
@@ -18,8 +54,12 @@ function withoutCode(text) {
       fence = match[1];
       return ' '.repeat(line.length);
     }
-    return line.replace(/(`+)([^`]|(?!\1)`)*?\1/g, value => ' '.repeat(value.length));
+    return line;
   }).join('\n');
+
+  // Code spans can cross line endings. Preserve those endings so diagnostics
+  // still refer to the original source line after the span is blanked.
+  return withoutFences.split(/(\n[ \t\r]*\n)/).map(blankCodeSpans).join('');
 }
 
 const normalizeLabel = label => label.trim().replace(/\s+/g, ' ').toLowerCase();
