@@ -37,6 +37,15 @@ test('ignores fenced code and inline code while retaining line numbers', () => {
   assert.deepEqual(extractLinks(text), [{ target: 'yes.md', line: 5 }]);
 });
 
+test('ignores multiline code spans while retaining line numbers', () => {
+  const text = '``example with ` continues\n[example](no.md)\nacross lines``\n[real](yes.md)';
+  assert.deepEqual(extractLinks(text), [{ target: 'yes.md', line: 4 }]);
+});
+
+test('requires equal-length backtick delimiters for code spans', () => {
+  assert.deepEqual(extractLinks('`[real](yes.md)``'), [{ target: 'yes.md', line: 1 }]);
+});
+
 test('handles explicit, collapsed and shortcut reference links', () => {
   assert.deepEqual(extractLinks('[one][Ref]\n[Ref][]\n[Ref]\n\n[ref]: docs/guide.md "Title"').map(x => x.target), ['docs/guide.md', 'docs/guide.md', 'docs/guide.md']);
 });
